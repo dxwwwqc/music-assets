@@ -1,5 +1,6 @@
 // 音乐文件基础 URL
 const MUSIC_BASE_URL = 'https://dxwwwqc.github.io/music-assets/';
+const AUDIO_BASE_URL = 'https://raw.githubusercontent.com/dxwwwqc/music-assets/main/';
 
 // Cache references to DOM elements.
 var elms = ['track', 'timer', 'duration', 'playBtn', 'pauseBtn', 'prevBtn', 'nextBtn', 'settingBtn', 'playlistBtn', 'volumeBtn', 'progress', 'waveform', 'canvas', 'loading', 'playlist', 'list', 'volume', 'barEmpty', 'barFull', 'sliderBtn'];
@@ -123,8 +124,8 @@ Player.prototype = {
     if (data.howl) {
       sound = data.howl;
     } else {
-      // 使用新的音乐文件路径
-      var musicUrl = data.file.startsWith('http') ? data.file : MUSIC_BASE_URL + data.file;
+      // 使用 GitHub Raw URL 加载音频文件
+      var musicUrl = data.file.startsWith('http') ? data.file : AUDIO_BASE_URL + data.file;
       
       sound = data.howl = new Howl({
         src: [musicUrl],
@@ -497,8 +498,8 @@ firebase.database().ref('games').once('value').then(function (games) {
       if (songObj['title'] == ' U') {
         songObj['title'] = ' U.N.オーエンは彼女なのか？'
       }
-      // 添加基础 URL
-      songObj['file'] = MUSIC_BASE_URL + song.path;
+      // 使用 GitHub Raw URL 加载音频文件
+      songObj['file'] = AUDIO_BASE_URL + song.path;
       songObj['howl'] = null;
       songObj['info'] = song;
       if (song.chorus_start_time) {
@@ -571,7 +572,7 @@ volume.addEventListener('touchend', function () {
   window.sliderDown = false;
 });
 
-// Image preloader
+// Image preloader - 使用 GitHub Pages 加载图片
 for (var i = 6; i < 27; i++) {
   imagePreload(MUSIC_BASE_URL + 'images/title/' + ('00' + i).slice(-2) + '.jpg');
 }
