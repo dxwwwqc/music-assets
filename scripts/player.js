@@ -1,6 +1,225 @@
-// 音乐文件基础 URL
+// 音频上下文恢复解决方案
+function forceResumeAudioContext() {
+    if (Howler.ctx && Howler.ctx.state === 'suspended') {
+        console.log("Audio context is suspended, attempting to resume...");
+        Howler.ctx.resume().then(() => {
+            console.log("✅ Audio context resumed successfully");
+            // 重新播放当前歌曲
+            if (player && player.playlist[player.index] && player.playlist[player.index].howl) {
+                var currentSound = player.playlist[player.index].howl;
+                if (currentSound.playing()) {
+                    currentSound.pause();
+                    setTimeout(() => currentSound.play(), 100);
+                }
+            }
+        }).catch(error => {
+            console.error("❌ Failed to resume audio context:", error);
+        });
+    } else {
+        console.log("Audio context state:", Howler.ctx ? Howler.ctx.state : "No context");
+    }
+}
+
+// 音频诊断函数
+function audioDiagnostic() {
+    console.log("=== Audio Diagnostic ===");
+    
+    // 检查音频上下文
+    console.log("1. Audio Context:", Howler.ctx ? Howler.ctx.state : "MISSING");
+    
+    // 检查全局设置
+    console.log("2. Global Volume:", Howler.volume());
+    console.log("3. Howler Global State:", Howler._howls ? Howler._howls.length + " sounds" : "No sounds");
+    
+    // 检查当前音频
+    if (player && player.playlist[player.index]) {
+        var sound = player.playlist[player.index].howl;
+        if (sound) {
+            console.log("4. Current Sound State:", sound.state());
+            console.log("5. Current Sound Playing:", sound.playing());
+            console.log("6. Current Sound Volume:", sound.volume());
+            console.log("7. Current Sound Duration:", sound.duration());
+            console.log("8. Current Sound Seek:", sound.seek());
+            
+            // 检查音频节点
+            if (sound._sounds && sound._sounds[0]) {
+                var audioNode = sound._sounds[0]._node;
+                console.log("9. Audio Node:", audioNode ? "EXISTS" : "MISSING");
+                if (audioNode) {
+                    console.log("10. Audio Node muted:", audioNode.muted);
+                    console.log("11. Audio Node volume:", audioNode.volume);
+                }
+            }
+        }
+    }
+    
+    // 测试基础音频API
+    var test = new Audio();
+    test.volume = 0.1;
+    test.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp56hVFApGn+DyvmQeBzF/z/LMeSsFHG+97+WQQAoUXrTp56hVFApGn+DyvmQeBzF/z/LMeSs=';
+    
+    test.play().then(() => {
+        console.log("✅ Basic Audio API: WORKING");
+        setTimeout(() => test.pause(), 1000);
+    }).catch(e => {
+        console.log("❌ Basic Audio API: BLOCKED -", e.message);
+    });
+}
+
+// 检查音频输出设备
+function checkAudioOutput() {
+    console.log("=== Audio Output Check ===");
+    
+    // 创建一个测试音频
+    var testSound = new Howl({
+        src: ['https://raw.githubusercontent.com/dxwwwqc/music-assets/main/audio/th06/01.%20%E8%B5%A4%E3%82%88%E3%82%8A%E7%B4%85%E3%81%84%E5%A4%A2.mp3'],
+        html5: true,
+        volume: 0.3,
+        onplay: function() {
+            console.log("✅ Howl.js Test: PLAYING - Audio output should work");
+            // 3秒后停止测试音频
+            setTimeout(() => {
+                testSound.stop();
+                console.log("Test audio stopped");
+            }, 3000);
+        },
+        onloaderror: function(id, error) {
+            console.log("❌ Howl.js Test: LOAD ERROR -", error);
+        },
+        onplayerror: function() {
+            console.log("❌ Howl.js Test: PLAY ERROR - Audio context issue");
+        },
+        onend: function() {
+            console.log("✅ Howl.js Test: PLAYBACK COMPLETED");
+        }
+    });
+    
+    console.log("Starting Howl.js test playback...");
+    testSound.play();
+}
+
+// 完全重新初始化音频系统
+function reinitializeAudioSystem() {
+    console.log("🔄 Reinitializing audio system...");
+    
+    // 1. 停止所有声音
+    Howler.stop();
+    
+    // 2. 卸载所有音频
+    if (Howler._howls) {
+        Howler._howls.forEach(function(howl) {
+            howl.unload();
+        });
+    }
+    
+    // 3. 重新创建音频上下文
+    if (Howler.ctx) {
+        Howler.ctx.close();
+    }
+    Howler.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // 4. 重置全局设置
+    Howler.volume(1.0);
+    
+    console.log("✅ Audio system reinitialized");
+    console.log("New audio context state:", Howler.ctx.state);
+    
+    // 5. 重新播放当前歌曲
+    setTimeout(() => {
+        if (player && player.playlist[player.index]) {
+            var currentIndex = player.index;
+            console.log("Restarting playback from index:", currentIndex);
+            
+            // 确保之前的音频被清理
+            if (player.playlist[currentIndex].howl) {
+                player.playlist[currentIndex].howl.unload();
+                delete player.playlist[currentIndex].howl;
+            }
+            
+            // 重新播放
+            player.play(currentIndex, true);
+        }
+    }, 1000);
+}
+
+// 检查浏览器音频权限
+function checkAudioPermissions() {
+    console.log("=== Audio Permissions Check ===");
+    
+    // 检查自动播放策略
+    var testAudio = new Audio();
+    testAudio.src = 'https://raw.githubusercontent.com/dxwwwqc/music-assets/main/audio/th06/01.%20%E8%B5%A4%E3%82%88%E3%82%8A%E7%B4%85%E3%81%84%E5%A4%A2.mp3';
+    testAudio.volume = 0.1;
+    
+    var promise = testAudio.play();
+    
+    if (promise !== undefined) {
+        promise.then(() => {
+            console.log("✅ Autoplay: ALLOWED");
+            testAudio.pause();
+        }).catch(error => {
+            console.log("❌ Autoplay: BLOCKED -", error.name);
+            console.log("User interaction required to play audio");
+        });
+    }
+    
+    // 检查权限API (如果可用)
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({name: 'autoplay'}).then(function(result) {
+            console.log("Autoplay permission state:", result.state);
+        });
+    }
+}
+
+// 紧急音频修复
+function emergencyAudioFix() {
+    console.log("🚨 Performing emergency audio fix...");
+    
+    // 1. 停止所有当前播放
+    if (player && player.playlist[player.index].howl) {
+        player.playlist[player.index].howl.stop();
+    }
+    
+    // 2. 关闭现有音频上下文
+    if (Howler.ctx) {
+        Howler.ctx.close();
+        console.log("Closed existing audio context");
+    }
+    
+    // 3. 创建新的音频上下文
+    Howler.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    console.log("Created new audio context:", Howler.ctx.state);
+    
+    // 4. 设置全局音量
+    Howler.volume(1.0);
+    
+    // 5. 重新播放当前歌曲
+    setTimeout(() => {
+        if (player) {
+            var currentIndex = player.index;
+            console.log("Restarting playback from index:", currentIndex);
+            
+            // 先卸载当前音频
+            if (player.playlist[currentIndex].howl) {
+                player.playlist[currentIndex].howl.unload();
+                delete player.playlist[currentIndex].howl;
+            }
+            
+            // 重新创建并播放
+            player.play(currentIndex, true);
+        }
+    }, 500);
+}
+
+// 音乐文件基础 URL - 使用 GitHub Raw URL 访问音频文件
 const MUSIC_BASE_URL = 'https://dxwwwqc.github.io/music-assets/';
 const AUDIO_BASE_URL = 'https://raw.githubusercontent.com/dxwwwqc/music-assets/main/';
+
+// 全局音频状态管理
+var audioState = {
+    currentPlaying: null,
+    isPlaying: false
+};
 
 // Cache references to DOM elements.
 var elms = ['track', 'timer', 'duration', 'playBtn', 'pauseBtn', 'prevBtn', 'nextBtn', 'settingBtn', 'playlistBtn', 'volumeBtn', 'progress', 'waveform', 'canvas', 'loading', 'playlist', 'list', 'volume', 'barEmpty', 'barFull', 'sliderBtn'];
@@ -90,6 +309,37 @@ var Player = function (playlist) {
 Player.prototype = {
 
   lang: 'jp',
+  
+  /**
+   * 🔴 新增：停止所有音频的方法
+   */
+  stopAllSounds: function() {
+    var self = this;
+    console.log("🛑 Stopping all sounds...");
+    
+    // 停止 Howler 的所有声音
+    Howler.stop();
+    
+    // 遍历播放列表，停止所有 Howl 实例
+    self.playlist.forEach(function(song) {
+      if (song.howl) {
+        try {
+          if (song.howl.playing && song.howl.playing()) {
+            song.howl.stop();
+          }
+          // 卸载音频以释放资源
+          song.howl.unload();
+        } catch (error) {
+          console.log("Error stopping sound:", error);
+        }
+      }
+    });
+    
+    // 重置音频状态
+    audioState.isPlaying = false;
+    audioState.currentPlaying = null;
+  },
+
   /**
    * Play a song in the playlist.
    * @param  {Number} index Index of the song in the playlist (leave empty to play the first or current).
@@ -98,12 +348,20 @@ Player.prototype = {
     var self = this;
     var sound;
 
+    // 先确保音频上下文是活跃的
+    forceResumeAudioContext();
+
     index = typeof index === 'number' ? index : self.index;
+    
+    // 🔴 新增：停止所有正在播放的音频
+    self.stopAllSounds();
+    
     // Unload last song
     if (self.playlist[self.index].howl && self.index != index) {
       self.playlist[self.index].howl.unload();
       delete self.playlist[self.index].howl;
     }
+    
     // Keep track of the index we are currently playing.
     self.index = index;
 
@@ -124,13 +382,19 @@ Player.prototype = {
     if (data.howl) {
       sound = data.howl;
     } else {
-      // 使用 GitHub Raw URL 加载音频文件
-      var musicUrl = data.file.startsWith('http') ? data.file : AUDIO_BASE_URL + data.file;
+      // 使用已经构建好的完整音频 URL
+      var musicUrl = data.file;
       
       sound = data.howl = new Howl({
         src: [musicUrl],
         html5: true,
+        format: ['mp3'],
         onplay: function () {
+          console.log("🎵 Playback started successfully");
+          // 更新音频状态
+          audioState.isPlaying = true;
+          audioState.currentPlaying = self;
+          
           // For chorus mode
           if (chorusMode.checked && self.playlist[self.index].chorusStartTime) {
             data.howl.seek(self.playlist[self.index].chorusStartTime - 1);
@@ -146,13 +410,37 @@ Player.prototype = {
           pauseBtn.style.display = 'block';
         },
         onload: function () {
+          console.log("✅ Audio loaded successfully");
           loading.style.display = 'none';
         },
+        onloaderror: function(id, error) {
+          console.error("❌ Audio load error:", error);
+          loading.style.display = 'none';
+        },
+        onplayerror: function() {
+          console.error("❌ Playback error - audio context may be suspended");
+          // 尝试恢复音频上下文
+          forceResumeAudioContext();
+          // 重新尝试播放
+          setTimeout(() => {
+            if (sound && sound.state() === 'loaded') {
+              sound.play();
+            }
+          }, 500);
+        },
         onend: function () {
+          console.log("⏭️ Playback ended, skipping to next");
+          audioState.isPlaying = false;
           self.skip('next');
         },
-        onpause: function () {},
-        onstop: function () {}
+        onpause: function () {
+          console.log("⏸️ Playback paused");
+          audioState.isPlaying = false;
+        },
+        onstop: function () {
+          console.log("⏹️ Playback stopped");
+          audioState.isPlaying = false;
+        }
       });
 
       // Waveform display
@@ -215,6 +503,7 @@ Player.prototype = {
     }
 
     // Begin playing the sound.
+    console.log("🎵 Attempting to play audio...");
     sound.play();
 
     // Update the track display with new song title
@@ -251,6 +540,9 @@ Player.prototype = {
     // Puase the sound.
     sound.pause();
 
+    // 更新音频状态
+    audioState.isPlaying = false;
+
     if (videoPlayer.playing) {
       videoPlayer.pause();
     }
@@ -258,6 +550,24 @@ Player.prototype = {
     // Show the play button.
     playBtn.style.display = 'block';
     pauseBtn.style.display = 'none';
+  },
+
+  /**
+   * 🔴 新增：停止当前音频
+   */
+  stop: function() {
+    var self = this;
+    var sound = self.playlist[self.index].howl;
+    
+    if (sound) {
+      sound.stop();
+    }
+    
+    audioState.isPlaying = false;
+    
+    // 显示播放按钮
+    if (playBtn) playBtn.style.display = 'block';
+    if (pauseBtn) pauseBtn.style.display = 'none';
   },
 
   /**
@@ -324,7 +634,15 @@ Player.prototype = {
     // Update the display on the slider.
     var barWidth = (val * 90) / 100;
     barFull.style.width = (barWidth * 100) + '%';
-    sliderBtn.style.left = (window.innerWidth * barWidth + window.innerWidth * 0.05 - 25) + 'px';
+    
+    // 修复滑块位置计算
+    var volumeWidth = volume.offsetWidth;
+    var sliderWidth = sliderBtn.offsetWidth;
+    var sliderPosition = (volumeWidth * val) - (sliderWidth / 2);
+    
+    // 确保滑块不会超出音量条边界
+    sliderPosition = Math.max(0, Math.min(sliderPosition, volumeWidth - sliderWidth));
+    sliderBtn.style.left = sliderPosition + 'px';
   },
 
   /**
@@ -449,12 +767,23 @@ var resize = function () {
   waveform.style.bottom = (height * 0.1 + 90) + 'px';
   canvas.width = width;
   canvas.height = height;
+  
   // Update the position of the slider.
   var sound = player.playlist[player.index].howl;
   if (sound) {
     var vol = sound.volume();
     var barWidth = (vol * 0.9);
-    sliderBtn.style.left = (window.innerWidth * barWidth + window.innerWidth * 0.05 - 25) + 'px';
+    barFull.style.width = (barWidth * 100) + '%';
+    
+    // 修复滑块位置计算
+    var volumeWidth = volume.offsetWidth;
+    var sliderWidth = sliderBtn.offsetWidth;
+    var sliderPosition = (volumeWidth * vol) - (sliderWidth / 2);
+    
+    // 确保滑块不会超出音量条边界
+    sliderPosition = Math.max(0, Math.min(sliderPosition, volumeWidth - sliderWidth));
+    sliderBtn.style.left = sliderPosition + 'px';
+    
     if (vudio) {
       vudio.width = width;
       vudio.height = height;
@@ -473,9 +802,10 @@ window.addEventListener('resize', resize);
 var move = function (event) {
   if (window.sliderDown) {
     var x = event.clientX || event.touches[0].clientX;
-    var startX = window.innerWidth * 0.05;
-    var layerX = x - startX;
-    var per = Math.min(1, Math.max(0, layerX / parseFloat(barEmpty.scrollWidth)));
+    var rect = volume.getBoundingClientRect();
+    var volumeWidth = rect.width;
+    var clickX = x - rect.left;
+    var per = Math.min(1, Math.max(0, clickX / volumeWidth));
     player.volume(per);
   }
 };
@@ -498,8 +828,9 @@ firebase.database().ref('games').once('value').then(function (games) {
       if (songObj['title'] == ' U') {
         songObj['title'] = ' U.N.オーエンは彼女なのか？'
       }
-      // 使用 GitHub Raw URL 加载音频文件
-      songObj['file'] = AUDIO_BASE_URL + song.path;
+      // 使用 GitHub Raw URL 构建音频文件路径
+      var audioPath = song.path.replace('/audio/', 'audio/');
+      songObj['file'] = AUDIO_BASE_URL + audioPath;
       songObj['howl'] = null;
       songObj['info'] = song;
       if (song.chorus_start_time) {
@@ -518,7 +849,15 @@ firebase.database().ref('games').once('value').then(function (games) {
 
 // Bind our player controls.
 playBtn.addEventListener('click', function () {
-  player.play();
+    console.log("Play button clicked");
+    forceResumeAudioContext();
+    
+    // 延迟一点确保音频上下文已恢复
+    setTimeout(() => {
+        if (player) {
+            player.play();
+        }
+    }, 100);
 });
 pauseBtn.addEventListener('click', function () {
   player.pause();
@@ -556,7 +895,9 @@ animatedWaveform.addEventListener('change', function () {
 
 // Setup the event listeners to enable dragging of volume slider.
 barEmpty.addEventListener('click', function (event) {
-  var per = event.layerX / parseFloat(barEmpty.scrollWidth);
+  var volumeWidth = barEmpty.offsetWidth;
+  var clickX = event.offsetX || event.layerX;
+  var per = Math.max(0, Math.min(1, clickX / volumeWidth));
   player.volume(per);
 });
 sliderBtn.addEventListener('mousedown', function () {
@@ -572,7 +913,7 @@ volume.addEventListener('touchend', function () {
   window.sliderDown = false;
 });
 
-// Image preloader - 使用 GitHub Pages 加载图片
+// Image preloader
 for (var i = 6; i < 27; i++) {
   imagePreload(MUSIC_BASE_URL + 'images/title/' + ('00' + i).slice(-2) + '.jpg');
 }
@@ -621,3 +962,126 @@ function langChanged() {
         }
       });
 }
+
+// 工具函数
+function mobilecheck() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+function fixImageUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('.')) url = url.substring(1);
+  if (!url.startsWith('/') && !url.startsWith('http')) url = '/' + url;
+  return encodeURI(url).replace(/%2F/g, '/');
+}
+
+function changeImage(info) {
+  console.log("Changing image with info:", info);
+  if (!info || !info.character) return;
+  
+  firebase.database().ref('images').once('value').then(function(characters) {
+    let characterFound = false;
+    characters.val().some(character => {
+      if (character.name === info.character) {
+        characterFound = true;
+        if (character.images && character.images.length > 0) {
+          const randomIndex = Math.floor(Math.random() * character.images.length);
+          let imageURL = character.images[randomIndex].path;
+          imageURL = fixImageUrl(imageURL);
+          if (!imageURL.startsWith('http')) {
+            imageURL = 'https://dxwwwqc.github.io/music-assets' + imageURL;
+          }
+          fadeInImage('foreground', imageURL, 'background');
+        } else {
+          loadImageFromGoogle(info.character);
+        }
+        return true;
+      }
+      return false;
+    });
+    if (!characterFound) loadImageFromGoogle(info.character);
+  }).catch(function(error) {
+    console.error("Firebase error:", error);
+    loadImageFromGoogle(info.character);
+  });
+}
+
+function loadImageFromGoogle(character) {
+  const cx = '009797881502979873179:yxcz0y7drxo';
+  const url = `https://www.googleapis.com/customsearch/v1/siterestrict?key=${googleAPI}&cx=${cx}&q=${encodeURIComponent(character)}&searchType=image&imgSize=large&safe=medium`;
+  fetch(url).then(response => response.json()).then(data => {
+    if (data.items && data.items.length > 0) {
+      const randomIndex = Math.floor(Math.random() * data.items.length);
+      const imageURL = data.items[randomIndex].link;
+      fadeInImage('foreground', imageURL, 'background');
+    }
+  }).catch(error => console.error("Google image search failed:", error));
+}
+
+function getTranslatedSong(file, lang) {
+  return Promise.resolve(null);
+}
+
+function imagePreload(url) {
+  var img = new Image();
+  img.src = encodeURI(url);
+  return img;
+}
+
+function setOpacity(object, opacityPct) {
+  if (object) object.style.opacity = opacityPct / 100;
+}
+
+function fadeInImage(foregroundId, imageURL, backgroundId, callback = undefined) {
+  if (imageURL) imagePreload(imageURL);
+  var foreground = document.getElementById(foregroundId);
+  var background = document.getElementById(backgroundId);
+  if (background && foreground) {
+    background.style.backgroundImage = foreground.style.backgroundImage || '';
+    background.style.backgroundSize = 'cover';
+    background.style.backgroundPosition = 'center';
+    background.style.backgroundRepeat = 'no-repeat';
+  }
+  setTimeout(() => {
+    if (foreground) {
+      setOpacity(foreground, 0);
+      foreground.style.backgroundImage = "url('" + imageURL + "')";
+      foreground.style.backgroundSize = 'cover';
+      foreground.style.backgroundPosition = 'center';
+      foreground.style.backgroundRepeat = 'no-repeat';
+      setTimeout(() => {
+        setOpacity(foreground, 100);
+        if (callback) callback();
+      }, 50);
+    }
+  }, 1000);
+}
+
+// 在页面加载时自动尝试恢复音频
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Page loaded, setting up audio recovery...");
+    
+    // 添加用户交互监听
+    document.addEventListener('click', function() {
+        console.log("User clicked, attempting to resume audio...");
+        forceResumeAudioContext();
+    });
+    
+    document.addEventListener('keydown', function() {
+        console.log("User pressed key, attempting to resume audio...");
+        forceResumeAudioContext();
+    });
+    
+    // 5秒后自动尝试恢复
+    setTimeout(forceResumeAudioContext, 5000);
+});
+
+// 在控制台中可以调用的调试函数
+window.forceResumeAudioContext = forceResumeAudioContext;
+window.audioDiagnostic = audioDiagnostic;
+window.checkAudioOutput = checkAudioOutput;
+window.reinitializeAudioSystem = reinitializeAudioSystem;
+window.checkAudioPermissions = checkAudioPermissions;
+window.emergencyAudioFix = emergencyAudioFix;
+
+console.log("Audio player initialized with enhanced audio context recovery");

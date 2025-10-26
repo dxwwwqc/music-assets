@@ -480,14 +480,13 @@ input:checked + .slider:before {
     height: 50px;
     position: absolute;
     top: 50%;
-    left: 93.25%;
+    left: 75%; /* 改为75% */
     margin: -25px auto;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: #fff; /* 改为实心白色 */
     box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.33);
     border-radius: 25px;
     cursor: pointer;
 }
-
 /* Fade-In */
 .fadeout {
     -webkit-animation: fadeout 0.5s;
