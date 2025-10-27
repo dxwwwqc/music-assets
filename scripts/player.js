@@ -634,15 +634,7 @@ Player.prototype = {
     // Update the display on the slider.
     var barWidth = (val * 90) / 100;
     barFull.style.width = (barWidth * 100) + '%';
-    
-    // 修复滑块位置计算
-    var volumeWidth = volume.offsetWidth;
-    var sliderWidth = sliderBtn.offsetWidth;
-    var sliderPosition = (volumeWidth * val) - (sliderWidth / 2);
-    
-    // 确保滑块不会超出音量条边界
-    sliderPosition = Math.max(0, Math.min(sliderPosition, volumeWidth - sliderWidth));
-    sliderBtn.style.left = sliderPosition + 'px';
+    sliderBtn.style.left = (window.innerWidth * barWidth + window.innerWidth * 0.05 - 25) + 'px';
   },
 
   /**
@@ -773,16 +765,7 @@ var resize = function () {
   if (sound) {
     var vol = sound.volume();
     var barWidth = (vol * 0.9);
-    barFull.style.width = (barWidth * 100) + '%';
-    
-    // 修复滑块位置计算
-    var volumeWidth = volume.offsetWidth;
-    var sliderWidth = sliderBtn.offsetWidth;
-    var sliderPosition = (volumeWidth * vol) - (sliderWidth / 2);
-    
-    // 确保滑块不会超出音量条边界
-    sliderPosition = Math.max(0, Math.min(sliderPosition, volumeWidth - sliderWidth));
-    sliderBtn.style.left = sliderPosition + 'px';
+    sliderBtn.style.left = (window.innerWidth * barWidth + window.innerWidth * 0.05 - 25) + 'px';
     
     if (vudio) {
       vudio.width = width;
@@ -802,10 +785,9 @@ window.addEventListener('resize', resize);
 var move = function (event) {
   if (window.sliderDown) {
     var x = event.clientX || event.touches[0].clientX;
-    var rect = volume.getBoundingClientRect();
-    var volumeWidth = rect.width;
-    var clickX = x - rect.left;
-    var per = Math.min(1, Math.max(0, clickX / volumeWidth));
+    var startX = window.innerWidth * 0.05;
+    var layerX = x - startX;
+    var per = Math.min(1, Math.max(0, layerX / parseFloat(barEmpty.scrollWidth)));
     player.volume(per);
   }
 };
@@ -895,9 +877,7 @@ animatedWaveform.addEventListener('change', function () {
 
 // Setup the event listeners to enable dragging of volume slider.
 barEmpty.addEventListener('click', function (event) {
-  var volumeWidth = barEmpty.offsetWidth;
-  var clickX = event.offsetX || event.layerX;
-  var per = Math.max(0, Math.min(1, clickX / volumeWidth));
+  var per = event.layerX / parseFloat(barEmpty.scrollWidth);
   player.volume(per);
 });
 sliderBtn.addEventListener('mousedown', function () {
